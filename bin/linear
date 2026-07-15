@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+# Thin Linear CLI for the harness agent (GraphQL + LINEAR_API_KEY).
+# Drop-in for common skill workflows when @zwarunek/linear-cli isn't on PATH.
+set -euo pipefail
+
+API="${LINEAR_API_URL:-https://api.linear.app/graphql}"
+KEY="${LINEAR_API_KEY:-}"
+
+die() { echo "linear: $*" >&2; exit 1; }
+need_key() { [ -n "$KEY" ] || die "LINEAR_API_KEY not set"; }
+
+gql() {
+  need_key
+  local query="$1"
+  local vars="${2:-}"
+  if [ -n "$vars" ]; then
+    body=$(jq -nc --arg q "$query" --argjson v "$vars" '{query:$q, variables:$v}')
+  else
+    body=$(jq -nc --arg q "$query" '{query:$q}')
+  fi
+  curl -sS "$API" \
+    -H "Authorization: $KEY" \
+    -H "Content-Type: application/json" \
+    -d "$body"
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  ""|-h|--help|help)
+    cat <<'EOF'
+linear — harness Linear helper (LINEAR_API_KEY)
+
+  linear whoami
+  linear teams
+  linear issues [teamKey] [--limit N]
+  linear issue view <ID|KEY-123>
+  linear issue create --title T --team TEAMKEY [--description D] [--priority 1-4]
+  linear issue update <ID> [--title T] [--state NAME] [--description D]
+  linear issue comment <ID> --body TEXT
+  linear search <query>
+  linear gql '<graphql>' [varsJson]
+
+Env: LINEAR_API_KEY (required), LINEAR_API_URL (optional)
+EOF
+    ;;
+
+  whoami|auth)
+    # auth whoami compatibility
+    sub="${1:-whoami}"
+    if [ "$cmd" = "auth" ] && [ "$sub" != "whoami" ] && [ "$sub" != "token" ]; then
+      die "supported auth subcommands: whoami"
+    fi
+    [ "$cmd" = "auth" ] && shift || true
+    gql '{ viewer { id name email organization { id name urlKey } } }' | jq .
+    ;;
+
+  teams)
+    gql '{ teams { nodes { id key name } } }' | jq '.data.teams.nodes'
+    ;;
+
+  issues)
+    team=""
+    limit=20
+    mine=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --limit) limit="$2"; shift 2 ;;
+        --mine) mine=1; shift ;;
+        *) team="$1"; shift ;;
+      esac
+    done
+    if [ -n "$team" ]; then
+      gql 'query($k:String!,$n:Int!){ issues(filter:{team:{key:{eq:$k}}}, first:$n){ nodes { id identifier title url state { name } assignee { name } } } }' \
+        "$(jq -nc --arg k "$team" --argjson n "$limit" '{k:$k,n:$n}')" \
+        | jq '.data.issues.nodes'
+    else
+      # Default: viewer's assigned issues (org-wide "first N issues" is noisy/empty filters)
+      gql "query(\$n:Int!){ viewer { assignedIssues(first:\$n){ nodes { id identifier title url state { name } team { key } } } } }" \
+        "$(jq -nc --argjson n "$limit" '{n:$n}')" \
+        | jq '.data.viewer.assignedIssues.nodes'
+    fi
+    ;;
+
+  issue)
+    sub="${1:-}"; shift || true
+    case "$sub" in
+      view)
+        id="${1:?issue id or key}"; shift || true
+        gql 'query($id:String!){ issue(id:$id){ id identifier title description url state { name } team { key name } assignee { name } priority labels { nodes { name } } comments { nodes { body user { name } createdAt } } } }' \
+          "$(jq -nc --arg id "$id" '{id:$id}')" | jq '.data.issue'
+        ;;
+      create)
+        title=""; team=""; desc=""; priority=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --title) title="$2"; shift 2 ;;
+            --team) team="$2"; shift 2 ;;
+            --description) desc="$2"; shift 2 ;;
+            --priority) priority="$2"; shift 2 ;;
+            *) die "unknown flag $1" ;;
+          esac
+        done
+        [ -n "$title" ] && [ -n "$team" ] || die "need --title and --team TEAMKEY"
+        # resolve team id
+        teamId=$(gql 'query($k:String!){ teams(filter:{key:{eq:$k}}){ nodes { id } } }' \
+          "$(jq -nc --arg k "$team" '{k:$k}')" | jq -r '.data.teams.nodes[0].id // empty')
+        [ -n "$teamId" ] || die "team not found: $team"
+        vars=$(jq -nc \
+          --arg title "$title" \
+          --arg teamId "$teamId" \
+          --arg desc "$desc" \
+          --arg pri "$priority" \
+          '{
+            input: ({
+              title: $title,
+              teamId: $teamId
+            }
+            + (if $desc == "" then {} else {description:$desc} end)
+            + (if $pri == "" then {} else {priority: ($pri|tonumber)} end))
+          }')
+        gql 'mutation($input: IssueCreateInput!){ issueCreate(input:$input){ success issue { id identifier title url } } }' "$vars" \
+          | jq '.data.issueCreate'
+        ;;
+      update)
+        id="${1:?issue id}"; shift
+        title=""; state=""; desc=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --title) title="$2"; shift 2 ;;
+            --state) state="$2"; shift 2 ;;
+            --description) desc="$2"; shift 2 ;;
+            *) die "unknown flag $1" ;;
+          esac
+        done
+        # state name → state id via issue's team
+        stateId=""
+        if [ -n "$state" ]; then
+          teamId=$(gql 'query($id:String!){ issue(id:$id){ team { id } } }' \
+            "$(jq -nc --arg id "$id" '{id:$id}')" | jq -r '.data.issue.team.id')
+          stateId=$(gql 'query($t:String!){ team(id:$t){ states { nodes { id name } } } }' \
+            "$(jq -nc --arg t "$teamId" '{t:$t}')" \
+            | jq -r --arg s "$state" '.data.team.states.nodes[] | select(.name|ascii_downcase==($s|ascii_downcase)) | .id' | head -1)
+          [ -n "$stateId" ] || die "state not found: $state"
+        fi
+        vars=$(jq -nc \
+          --arg id "$id" \
+          --arg title "$title" \
+          --arg desc "$desc" \
+          --arg stateId "$stateId" \
+          '{
+            id: $id,
+            input: (
+              {}
+              + (if $title == "" then {} else {title:$title} end)
+              + (if $desc == "" then {} else {description:$desc} end)
+              + (if $stateId == "" then {} else {stateId:$stateId} end)
+            )
+          }')
+        gql 'mutation($id:String!,$input:IssueUpdateInput!){ issueUpdate(id:$id,input:$input){ success issue { id identifier title url state { name } } } }' "$vars" \
+          | jq '.data.issueUpdate'
+        ;;
+      comment)
+        id="${1:?issue id}"; shift
+        body=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --body) body="$2"; shift 2 ;;
+            *) body="$1"; shift ;;
+          esac
+        done
+        [ -n "$body" ] || die "need --body"
+        vars=$(jq -nc --arg id "$id" --arg body "$body" '{input:{issueId:$id, body:$body}}')
+        gql 'mutation($input: CommentCreateInput!){ commentCreate(input:$input){ success comment { id url } } }' "$vars" \
+          | jq '.data.commentCreate'
+        ;;
+      *)
+        die "issue subcommands: view | create | update | comment"
+        ;;
+    esac
+    ;;
+
+  search)
+    q="${*:?query}"
+    gql 'query($t:String!){ searchIssues(term:$t, first:20){ nodes { id identifier title url state { name } team { key } } } }' \
+      "$(jq -nc --arg t "$q" '{t:$t}')" | jq '.data.searchIssues.nodes'
+    ;;
+
+  gql)
+    query="${1:?graphql query}"; shift || true
+    vars="${1:-}"
+    if [ -n "$vars" ]; then gql "$query" "$vars"; else gql "$query"; fi | jq .
+    ;;
+
+  *)
+    die "unknown command: $cmd (try: linear help)"
+    ;;
+esac

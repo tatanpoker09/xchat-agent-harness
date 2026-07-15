@@ -133,6 +133,7 @@ if (accountHandle) {
 
 let ConfigLayer: Layer.Layer<never> = Layer.empty;
 // Prefer harness .env; fall back to sibling x-chat/.env (shared XAI key).
+// Also export KEY=VALUE into process.env so bash tools (linear, gh) inherit them.
 const envCandidates = [
   resolve(import.meta.dirname, "../../../.env"),
   resolve(import.meta.dirname, "../../../../x-chat/.env"),
@@ -140,11 +141,33 @@ const envCandidates = [
 for (const envPath of envCandidates) {
   try {
     const contents = readFileSync(envPath, "utf-8");
+    for (const line of contents.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      let value = trimmed.slice(eq + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      // Don't clobber already-set secrets from the outer shell / k8s.
+      if (key && process.env[key] === undefined) process.env[key] = value;
+    }
     ConfigLayer = ConfigProvider.layerAdd(ConfigProvider.fromDotEnvContents(contents));
     break;
   } catch {
     /* try next */
   }
+}
+
+// Harness bin/ (linear CLI wrapper) on PATH for bash tool.
+const harnessBin = resolve(import.meta.dirname, "../../../bin");
+if (existsSync(harnessBin)) {
+  process.env.PATH = `${harnessBin}:${process.env.PATH ?? ""}`;
 }
 
 // ── LLM Provider ──
