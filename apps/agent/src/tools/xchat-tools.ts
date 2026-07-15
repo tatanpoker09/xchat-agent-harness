@@ -93,7 +93,7 @@ export const ViewMedia = Tool.make("view_media", {
 
 export const ReactToMessage = Tool.make("react_to_message", {
   description:
-    "React to a message with an emoji. Use message IDs (as strings) from the conversation context.",
+    "Emoji reaction on a message. Use proactively when something is funny/cool/impressive/cursed — not only when asked. One emoji. Message id from [msg:…] metadata.",
   parameters: Schema.Struct({
     conversation_id: Schema.String,
     message_id: Schema.String,
