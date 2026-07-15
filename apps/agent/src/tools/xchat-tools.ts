@@ -749,15 +749,26 @@ export const makeToolkitLayer = (
               return `Cannot restart: missing ${restartSh}`;
             }
 
-            const child = cp.spawn("bash", [restartSh, String(handle)], {
-              detached: true,
-              stdio: "ignore",
-              env: { ...process.env, XCHAT_RESTART_REASON: params.reason ?? "" },
-            });
+            // Pass parent pid so restart can start the replacement FIRST, then
+            // kill us — never "kill self and hope."
+            const parentPid = String(process.pid);
+            const child = cp.spawn(
+              "bash",
+              [restartSh, String(handle), parentPid],
+              {
+                detached: true,
+                stdio: "ignore",
+                env: {
+                  ...process.env,
+                  XCHAT_RESTART_REASON: params.reason ?? "",
+                  XCHAT_PARENT_PID: parentPid,
+                },
+              },
+            );
             child.unref();
 
             logToolResult("restart_agent", params, "Restart script spawned", true);
-            return `Restarting harness agent now (log: ${logFile}).`;
+            return `Restarting — spinning up a replacement first, then exiting. Log: ${logFile}`;
           });
         },
         brain_list: logged("brain_list", (params) =>
