@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Sourcegraph search CLI for the harness agent.
+# Endpoint: SOURCEGRAPH_URL (default https://sourcegraph.twitter.biz)
+# Auth: SOURCEGRAPH_TOKEN or SRC_ACCESS_TOKEN
+set -euo pipefail
+
+URL="${SOURCEGRAPH_URL:-https://sourcegraph.twitter.biz}"
+URL="${URL%/}"
+TOKEN="${SOURCEGRAPH_TOKEN:-${SRC_ACCESS_TOKEN:-}}"
+
+die() { echo "sourcegraph: $*" >&2; exit 1; }
+need_token() { [ -n "$TOKEN" ] || die "set SOURCEGRAPH_TOKEN (or SRC_ACCESS_TOKEN) in harness .env"; }
+
+gql() {
+  need_token
+  local query="$1"
+  local vars="${2:-}"
+  if [ -n "$vars" ]; then
+    body=$(jq -nc --arg q "$query" --argjson v "$vars" '{query:$q, variables:$v}')
+  else
+    body=$(jq -nc --arg q "$query" '{query:$q}')
+  fi
+  curl -sS "${URL}/.api/graphql" \
+    -H "Authorization: token ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$body"
+}
+
+cmd="${1:-}"; shift || true
+
+case "$cmd" in
+  ""|-h|--help|help)
+    cat <<'EOF'
+sourcegraph — code search (SOURCEGRAPH_TOKEN)
+
+  sourcegraph whoami
+  sourcegraph search '<query>' [--limit N]
+  sourcegraph content '<query>' [--limit N]   # include file snippets
+  sourcegraph file <repo> <path>             # raw file contents (repo@rev path)
+
+Query language (examples):
+  repo:github.com/x-clients/x-chat listenAndRespond
+  file:xchat.ts lastSeenId
+  context:global type:symbol Message
+
+Env:
+  SOURCEGRAPH_URL   default https://sourcegraph.twitter.biz
+  SOURCEGRAPH_TOKEN personal access token (or SRC_ACCESS_TOKEN)
+EOF
+    ;;
+
+  whoami)
+    gql '{ currentUser { username displayName email siteAdmin } }' | jq .
+    ;;
+
+  search|content)
+    q=""
+    limit=20
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --limit) limit="$2"; shift 2 ;;
+        *) q="${q:+$q }$1"; shift ;;
+      esac
+    done
+    [ -n "$q" ] || die "need search query"
+    # Standard search results
+    gql 'query($q:String!,$n:Int!){
+      search(query:$q, version:V3, patternType:literal) {
+        results {
+          matchCount
+          limitHit
+          results {
+            __typename
+            ... on FileMatch {
+              repository { name }
+              file { path url }
+              lineMatches { lineNumber preview }
+            }
+            ... on Repository { name url }
+          }
+        }
+      }
+    }' "$(jq -nc --arg q "$q" --argjson n "$limit" '{q:$q,n:$n}')" \
+      | jq --argjson n "$limit" '
+        .data.search.results as $r
+        | {
+            matchCount: $r.matchCount,
+            limitHit: $r.limitHit,
+            results: (
+              $r.results
+              | map(select(.__typename=="FileMatch")
+                | {
+                    repo: .repository.name,
+                    path: .file.path,
+                    url: .file.url,
+                    lines: (.lineMatches // [] | map({line: .lineNumber, text: .preview}) | .[0:5])
+                  })
+              | .[0:$n]
+            )
+          }'
+    ;;
+
+  file)
+    repo="${1:?repo}"; path="${2:?path}"; shift 2 || true
+    rev="${1:-HEAD}"
+    gql 'query($repo:String!,$rev:String!,$path:String!){
+      repository(name:$repo) {
+        commit(rev:$rev) {
+          file(path:$path) { content path url }
+        }
+      }
+    }' "$(jq -nc --arg repo "$repo" --arg rev "$rev" --arg path "$path" '{repo:$repo,rev:$rev,path:$path}')" \
+      | jq '.data.repository.commit.file'
+    ;;
+
+  gql)
+    query="${1:?graphql}"; shift || true
+    vars="${1:-}"
+    if [ -n "$vars" ]; then gql "$query" "$vars"; else gql "$query"; fi | jq .
+    ;;
+
+  *)
+    die "unknown command: $cmd (try: sourcegraph help)"
+    ;;
+esac
