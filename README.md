@@ -1,9 +1,15 @@
 # xchat-agent-harness
 
-Agent extensions and skills (linear-cli first).
+**Skills / extras sidecar** for `@tatanbotter09` — NOT the agent runtime.
 
-## Usage
-```
-use_skill linear-cli
-bash(linear:issue list)
-```
+| Put here | Do NOT put here |
+|----------|-----------------|
+| `*/SKILL.md` skills | Message handling / adapters |
+| Linear CLI skill | Agent loop / restart logic |
+| Small agent extensions docs | Full xchat-agent rewrites |
+
+Runtime code lives in the local **x-chat** checkout:
+`apps/xchat-agent/**` (upstream `x-clients/x-chat`).
+
+On `restart_agent`, skills from this repo are copied into
+`apps/xchat-agent/skills/`.
