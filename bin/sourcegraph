@@ -20,10 +20,16 @@ gql() {
   else
     body=$(jq -nc --arg q "$query" '{query:$q}')
   fi
-  curl -sS "${URL}/.api/graphql" \
+  resp=$(curl -sS "${URL}/.api/graphql" \
     -H "Authorization: token ${TOKEN}" \
     -H "Content-Type: application/json" \
-    -d "$body"
+    -d "$body")
+  # Surface GraphQL errors clearly (don't let jq choke on null data).
+  if echo "$resp" | jq -e '.errors? | select(length>0)' >/dev/null 2>&1; then
+    echo "$resp" | jq '{errors}' >&2
+    return 1
+  fi
+  printf '%s' "$resp"
 }
 
 cmd="${1:-}"; shift || true
@@ -63,8 +69,9 @@ EOF
       esac
     done
     [ -n "$q" ] || die "need search query"
-    # Standard search results
-    gql 'query($q:String!,$n:Int!){
+    # Append count: to query so SG limits results server-side (no unused vars).
+    full_q="${q} count:${limit}"
+    gql 'query($q:String!){
       search(query:$q, version:V3, patternType:literal) {
         results {
           matchCount
@@ -80,24 +87,28 @@ EOF
           }
         }
       }
-    }' "$(jq -nc --arg q "$q" --argjson n "$limit" '{q:$q,n:$n}')" \
-      | jq --argjson n "$limit" '
-        .data.search.results as $r
-        | {
-            matchCount: $r.matchCount,
-            limitHit: $r.limitHit,
-            results: (
-              $r.results
-              | map(select(.__typename=="FileMatch")
-                | {
-                    repo: .repository.name,
-                    path: .file.path,
-                    url: .file.url,
-                    lines: (.lineMatches // [] | map({line: .lineNumber, text: .preview}) | .[0:5])
-                  })
-              | .[0:$n]
-            )
-          }'
+    }' "$(jq -nc --arg q "$full_q" '{q:$q}')" \
+      | jq --arg base "$URL" --argjson n "$limit" '
+        if .data.search == null or .data.search.results == null then
+          {error: "no search results", raw: .}
+        else
+          .data.search.results as $r
+          | {
+              matchCount: $r.matchCount,
+              limitHit: $r.limitHit,
+              results: (
+                ($r.results // [])
+                | map(select(.__typename=="FileMatch")
+                  | {
+                      repo: .repository.name,
+                      path: .file.path,
+                      url: (if (.file.url|startswith("http")) then .file.url else ($base + .file.url) end),
+                      lines: ((.lineMatches // []) | map({line: .lineNumber, text: .preview}) | .[0:5])
+                    })
+                | .[0:$n]
+              )
+            }
+        end'
     ;;
 
   file)
