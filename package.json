@@ -1,0 +1,21 @@
+{
+  "name": "xchat-agent-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "tatanbot product agent. Owns bot runtime; imports @x-chat/* from sibling x-chat as SDK.",
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "setup": "bash scripts/setup-sdk-links.sh",
+    "agent": "bun run apps/agent/bin/main.ts",
+    "start": "bun run apps/agent/bin/main.ts --as tatanbotter09",
+    "start:tmux": "bash scripts/start-tmux.sh",
+    "restart": "bash scripts/restart.sh",
+    "typecheck": "bun run --cwd apps/agent typecheck",
+    "test": "bun test apps/agent/src/"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.10",
+    "typescript": "^5.8"
+  }
+}

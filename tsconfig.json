@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["bun"],
+    "baseUrl": ".",
+    "paths": {
+      "@x-chat/xchat-sdk": ["packages/xchat-sdk/src/index.ts"],
+      "@x-chat/xchat-sdk/*": ["packages/xchat-sdk/src/*"],
+      "@x-chat/drone-core": ["packages/drone-core/src/index.ts"],
+      "@x-chat/drone-core/*": ["packages/drone-core/src/*"]
+    }
+  },
+  "include": ["apps/**/*.ts"]
+}

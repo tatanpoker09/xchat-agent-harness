@@ -1,0 +1,269 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+catalogs:
+  default:
+    '@effect/ai-openai':
+      specifier: 4.0.0-beta.76
+      version: 4.0.0-beta.76
+    '@effect/sql-sqlite-bun':
+      specifier: 4.0.0-beta.76
+      version: 4.0.0-beta.76
+    effect:
+      specifier: 4.0.0-beta.76
+      version: 4.0.0-beta.76
+
+importers:
+
+  .:
+    devDependencies:
+      '@types/bun':
+        specifier: 1.3.10
+        version: 1.3.10
+      typescript:
+        specifier: ^5.8
+        version: 5.9.3
+
+  apps/agent:
+    dependencies:
+      '@effect/ai-openai':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.76(effect@4.0.0-beta.76)
+      '@effect/sql-sqlite-bun':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.76(effect@4.0.0-beta.76)
+      '@x-chat/drone-core':
+        specifier: workspace:*
+        version: link:../../packages/drone-core
+      '@x-chat/xchat-sdk':
+        specifier: workspace:*
+        version: link:../../packages/xchat-sdk
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-beta.76
+    devDependencies:
+      '@types/bun':
+        specifier: 1.3.10
+        version: 1.3.10
+      typescript:
+        specifier: ^5.8
+        version: 5.9.3
+
+packages:
+
+  '@effect/ai-openai@4.0.0-beta.76':
+    resolution: {integrity: sha512-LamD+Zb2vKVNTRh3YK45B+PengweLtlD5QKSmCavUgZD0KH0N7iWC2LAD6CRbEkSbwTTBPsOWfdQ3NQmWlwOOw==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@effect/ai-openai/-/ai-openai-4.0.0-beta.76.tgz}
+    peerDependencies:
+      effect: ^4.0.0-beta.76
+
+  '@effect/sql-sqlite-bun@4.0.0-beta.76':
+    resolution: {integrity: sha512-V+dI0s4O/g3yf4JY2C0Kf6vlKov9YvuYKvn1urphaxfvkK/+qTBrYvfQ9L48siPzw7Klxpsi1KiGnZE5AjS2yQ==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@effect/sql-sqlite-bun/-/sql-sqlite-bun-4.0.0-beta.76.tgz}
+    peerDependencies:
+      effect: ^4.0.0-beta.76
+
+  '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
+    resolution: {integrity: sha512-LCkGo6JDfaBhgST7UpPWgNgLINpcpabaHfyz5OBx75nUYxBsaEPxjnyNjWpeb/xBup/682QnBfRBy2/LvPutZQ==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@msgpackr-extract/msgpackr-extract-darwin-arm64/-/msgpackr-extract-darwin-arm64-3.0.4.tgz}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@msgpackr-extract/msgpackr-extract-darwin-x64@3.0.4':
+    resolution: {integrity: sha512-zExlW9zUJKZH/tOtVMttwjKa4Xm/3KcNjnE3dPN92uCktwavMxpgCA3MoJK/DOnTWsQgo224OaST27/mPNAf+w==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@msgpackr-extract/msgpackr-extract-darwin-x64/-/msgpackr-extract-darwin-x64-3.0.4.tgz}
+    cpu: [x64]
+    os: [darwin]
+
+  '@msgpackr-extract/msgpackr-extract-linux-arm64@3.0.4':
+    resolution: {integrity: sha512-dgX0P/9wGPJeHFBG+ZmhgE6bmtMt7NP5CRBGyyktpopdk/mW4POnrpQsSLtKI1dwpc+pPLuXHDh6vvskyQE/sw==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@msgpackr-extract/msgpackr-extract-linux-arm64/-/msgpackr-extract-linux-arm64-3.0.4.tgz}
+    cpu: [arm64]
+    os: [linux]
+
+  '@msgpackr-extract/msgpackr-extract-linux-arm@3.0.4':
+    resolution: {integrity: sha512-Tg3yX65f5GbtXLkrYEHE5oibZG9epyYWas7FogTTEJeDEF9JlXJzKgXaNhT3UXlTOeA+AfZpYZYZ0uPj7Cfquw==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@msgpackr-extract/msgpackr-extract-linux-arm/-/msgpackr-extract-linux-arm-3.0.4.tgz}
+    cpu: [arm]
+    os: [linux]
+
+  '@msgpackr-extract/msgpackr-extract-linux-x64@3.0.4':
+    resolution: {integrity: sha512-8TNXMEjJc3QEy7R/x1INhgiU+XakDAFUzBhaz7+Rbrs8NH5UQeHQxxmzsSBJGyV6I1jW79undiQm8tOI+D+8FQ==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@msgpackr-extract/msgpackr-extract-linux-x64/-/msgpackr-extract-linux-x64-3.0.4.tgz}
+    cpu: [x64]
+    os: [linux]
+
+  '@msgpackr-extract/msgpackr-extract-win32-x64@3.0.4':
+    resolution: {integrity: sha512-CmCXPQrkbwExx3j946/PtHWHbYJiCRBRDl4BlkRQcJB/YOwQxJRTpoo7aTsortjgoJ1x7opzTSxn7C+ASSLVjQ==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@msgpackr-extract/msgpackr-extract-win32-x64/-/msgpackr-extract-win32-x64-3.0.4.tgz}
+    cpu: [x64]
+    os: [win32]
+
+  '@standard-schema/spec@1.1.0':
+    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@standard-schema/spec/-/spec-1.1.0.tgz}
+
+  '@types/bun@1.3.10':
+    resolution: {integrity: sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@types/bun/-/bun-1.3.10.tgz}
+
+  '@types/node@26.1.1':
+    resolution: {integrity: sha512-nxAkRSVkN1Y0JC1W8ky/fTfkGsMmcrRsbx+3XoZE+rMOX71kLYTV7fLXpqud1GpbpP5TuffXFqfX7fH2GgZREw==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/@types/node/-/node-26.1.1.tgz}
+
+  bun-types@1.3.10:
+    resolution: {integrity: sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/bun-types/-/bun-types-1.3.10.tgz}
+
+  detect-libc@2.1.2:
+    resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/detect-libc/-/detect-libc-2.1.2.tgz}
+    engines: {node: '>=8'}
+
+  effect@4.0.0-beta.76:
+    resolution: {integrity: sha512-hiX9cyJni4o7xn1rCYn5ASkLQOYePY23QxvHh5vM9K9cCNauNeXnwufvetXoUVISD/swzBYxGbHUC3rnjqUF+g==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/effect/-/effect-4.0.0-beta.76.tgz}
+
+  fast-check@4.9.0:
+    resolution: {integrity: sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/fast-check/-/fast-check-4.9.0.tgz}
+    engines: {node: '>=12.17.0'}
+
+  find-my-way-ts@0.1.6:
+    resolution: {integrity: sha512-a85L9ZoXtNAey3Y6Z+eBWW658kO/MwR7zIafkIUPUMf3isZG0NCs2pjW2wtjxAKuJPxMAsHUIP4ZPGv0o5gyTA==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/find-my-way-ts/-/find-my-way-ts-0.1.6.tgz}
+
+  ini@7.0.0:
+    resolution: {integrity: sha512-ifK0CgjALofS5bkrcTy4RaQ9Vx2Knf/eLeIO+NaswQEpH1UblrtTSCIvN71qQDMq0PeQ/SSPojvEJp9vvvfr+w==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/ini/-/ini-7.0.0.tgz}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
+
+  kubernetes-types@1.30.0:
+    resolution: {integrity: sha512-Dew1okvhM/SQcIa2rcgujNndZwU8VnSapDgdxlYoB84ZlpAD43U6KLAFqYo17ykSFGHNPrg0qry0bP+GJd9v7Q==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/kubernetes-types/-/kubernetes-types-1.30.0.tgz}
+
+  msgpackr-extract@3.0.4:
+    resolution: {integrity: sha512-4kmO/MdyUIkLIvTPr8VHLil4AtoKIoniWPIEk5+CDy0xnWC84azhSFmuJ7PxZdsYtiP5kEeQsORAVIeMgxT+Hw==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/msgpackr-extract/-/msgpackr-extract-3.0.4.tgz}
+    hasBin: true
+
+  msgpackr@2.0.4:
+    resolution: {integrity: sha512-o1C5KRmuRt+apqMr1HuGSqWStZoRBUpEsCsl15uM9VdAF1qHLtvMOU2En747EnTyEl6c4pzPewRMFF31s1CNbA==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/msgpackr/-/msgpackr-2.0.4.tgz}
+
+  multipasta@0.2.8:
+    resolution: {integrity: sha512-ZPWuMKyv0cSO29f7hozp+k6+crZbQijV8ipMvxNxRf2SwtYGTX1ZX89Kd20VV4H9Znonx+EQn+iy1wGQsJ+b+Q==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/multipasta/-/multipasta-0.2.8.tgz}
+
+  node-gyp-build-optional-packages@5.2.2:
+    resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/node-gyp-build-optional-packages/-/node-gyp-build-optional-packages-5.2.2.tgz}
+    hasBin: true
+
+  pure-rand@8.4.2:
+    resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/pure-rand/-/pure-rand-8.4.2.tgz}
+
+  toml@4.3.0:
+    resolution: {integrity: sha512-lVb8X9BsPVuH0M4BKeS91tXAmJvCjQ5UIyAbQFaxkKGyUFK2RPkhwaFSQH8vbpl1d23eu/IBH+dwVMHWaq9A5A==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/toml/-/toml-4.3.0.tgz}
+    engines: {node: '>=20'}
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/typescript/-/typescript-5.9.3.tgz}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+  undici-types@8.3.0:
+    resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/undici-types/-/undici-types-8.3.0.tgz}
+
+  uuid@14.0.1:
+    resolution: {integrity: sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/uuid/-/uuid-14.0.1.tgz}
+    hasBin: true
+
+  yaml@2.9.0:
+    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==, tarball: https://artifactory.twitter.biz/artifactory/api/npm/js-virtual/yaml/-/yaml-2.9.0.tgz}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
+snapshots:
+
+  '@effect/ai-openai@4.0.0-beta.76(effect@4.0.0-beta.76)':
+    dependencies:
+      effect: 4.0.0-beta.76
+
+  '@effect/sql-sqlite-bun@4.0.0-beta.76(effect@4.0.0-beta.76)':
+    dependencies:
+      effect: 4.0.0-beta.76
+
+  '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
+    optional: true
+
+  '@msgpackr-extract/msgpackr-extract-darwin-x64@3.0.4':
+    optional: true
+
+  '@msgpackr-extract/msgpackr-extract-linux-arm64@3.0.4':
+    optional: true
+
+  '@msgpackr-extract/msgpackr-extract-linux-arm@3.0.4':
+    optional: true
+
+  '@msgpackr-extract/msgpackr-extract-linux-x64@3.0.4':
+    optional: true
+
+  '@msgpackr-extract/msgpackr-extract-win32-x64@3.0.4':
+    optional: true
+
+  '@standard-schema/spec@1.1.0': {}
+
+  '@types/bun@1.3.10':
+    dependencies:
+      bun-types: 1.3.10
+
+  '@types/node@26.1.1':
+    dependencies:
+      undici-types: 8.3.0
+
+  bun-types@1.3.10:
+    dependencies:
+      '@types/node': 26.1.1
+
+  detect-libc@2.1.2:
+    optional: true
+
+  effect@4.0.0-beta.76:
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      fast-check: 4.9.0
+      find-my-way-ts: 0.1.6
+      ini: 7.0.0
+      kubernetes-types: 1.30.0
+      msgpackr: 2.0.4
+      multipasta: 0.2.8
+      toml: 4.3.0
+      uuid: 14.0.1
+      yaml: 2.9.0
+
+  fast-check@4.9.0:
+    dependencies:
+      pure-rand: 8.4.2
+
+  find-my-way-ts@0.1.6: {}
+
+  ini@7.0.0: {}
+
+  kubernetes-types@1.30.0: {}
+
+  msgpackr-extract@3.0.4:
+    dependencies:
+      node-gyp-build-optional-packages: 5.2.2
+    optionalDependencies:
+      '@msgpackr-extract/msgpackr-extract-darwin-arm64': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-darwin-x64': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-linux-arm': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-linux-arm64': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-linux-x64': 3.0.4
+      '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.4
+    optional: true
+
+  msgpackr@2.0.4:
+    optionalDependencies:
+      msgpackr-extract: 3.0.4
+
+  multipasta@0.2.8: {}
+
+  node-gyp-build-optional-packages@5.2.2:
+    dependencies:
+      detect-libc: 2.1.2
+    optional: true
+
+  pure-rand@8.4.2: {}
+
+  toml@4.3.0: {}
+
+  typescript@5.9.3: {}
+
+  undici-types@8.3.0: {}
+
+  uuid@14.0.1: {}
+
+  yaml@2.9.0: {}

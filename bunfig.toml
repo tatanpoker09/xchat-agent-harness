@@ -1,0 +1,5 @@
+# Resolve @x-chat/* from sibling x-chat checkout (SDK), not vendored full agent.
+# Override with XCHAT_ROOT if your layout differs.
+
+[install]
+peer = false

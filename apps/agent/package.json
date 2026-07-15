@@ -1,0 +1,22 @@
+{
+  "name": "@tatanbot/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run bin/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src/"
+  },
+  "dependencies": {
+    "@effect/ai-openai": "catalog:",
+    "@effect/sql-sqlite-bun": "catalog:",
+    "@x-chat/drone-core": "workspace:*",
+    "@x-chat/xchat-sdk": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.10",
+    "typescript": "^5.8"
+  }
+}

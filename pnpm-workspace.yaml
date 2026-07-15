@@ -1,0 +1,12 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+catalog:
+  effect: "4.0.0-beta.76"
+  "@effect/ai-openai": "4.0.0-beta.76"
+  "@effect/sql-sqlite-bun": "4.0.0-beta.76"
+  "@effect/sql-sqlite-wasm": "4.0.0-beta.76"
+  "@effect/atom-react": "4.0.0-beta.76"
+  "@effect/vitest": "4.0.0-beta.76"
+  "@effect/wa-sqlite": "0.1.2"
