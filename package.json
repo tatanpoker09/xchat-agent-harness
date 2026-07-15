@@ -12,7 +12,8 @@
     "start:tmux": "bash scripts/start-tmux.sh",
     "restart": "bash scripts/restart.sh",
     "typecheck": "bun run --cwd apps/agent typecheck",
-    "test": "bun test apps/agent/src/"
+    "test": "bun test apps/agent/src/",
+    "deploy": "bash deploy/agent/deploy.sh"
   },
   "devDependencies": {
     "@types/bun": "1.3.10",

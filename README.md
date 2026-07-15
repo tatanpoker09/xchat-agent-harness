@@ -63,3 +63,11 @@ Log: `/tmp/xchat-restart.log`
 
 Open PRs **here** with real code under `apps/agent/`.  
 Do not ship docs-only proposals. Use x-chat only when the fix belongs in the shared SDK.
+
+## Kubernetes
+
+See [docs/DEPLOY.md](docs/DEPLOY.md).
+
+```bash
+./deploy/agent/deploy.sh @tatanbotter09
+```

@@ -1,0 +1,44 @@
+# xchat-agent-harness — k8s StatefulSet (one per bot handle)
+# Deploy via: ./deploy/agent/deploy.sh @tatanbotter09
+type: StatefulSet
+image: ""  # set by deploy.sh --image
+minClusterReplicas: 1
+
+twitterSecrets:
+  - key: agent-env
+    path: xchat-agent/{{ .Values.handle }}/env
+
+volumes:
+  - name: data
+    emptyDir: {}
+
+volumeMounts:
+  - name: data
+    mountPath: /data
+
+env:
+  - name: XCHAT_ACCOUNT_HANDLE
+    value: "{{ .Values.handle }}"
+  - name: HOME
+    value: /data
+  # Egress via envoy sidecar (label applied by deploy.sh)
+  - name: HTTPS_PROXY
+    value: "http://127.0.0.1:3140"
+  - name: HTTP_PROXY
+    value: "http://127.0.0.1:3140"
+  - name: NO_PROXY
+    value: "localhost,127.0.0.1"
+  - name: XAI_MODEL
+    value: "grok-4.3"
+  - name: XCHAT_LOG_LEVEL
+    value: "Info"
+  - name: SOURCEGRAPH_URL
+    value: "https://sourcegraph.twitter.biz"
+
+resources:
+  limits:
+    cpu: "2"
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
