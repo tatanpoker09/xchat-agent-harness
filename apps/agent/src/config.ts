@@ -51,7 +51,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   allowedConversationIds: [],
   defaults: {
     respondTo: "everyone",
-    trigger: "mention_only",
+    trigger: "addressed",
     toolkits: ["xchat"],
   },
   conversations: {},
@@ -295,9 +295,13 @@ const validateConversationConfig = (obj: Record<string, unknown>, path: string):
   }
 
   if (obj.trigger !== undefined) {
-    if (obj.trigger !== "all_messages" && obj.trigger !== "mention_only") {
+    if (
+      obj.trigger !== "all_messages" &&
+      obj.trigger !== "mention_only" &&
+      obj.trigger !== "addressed"
+    ) {
       throw new Error(
-        `Agent config: ${path}.trigger must be "all_messages" or "mention_only", got "${obj.trigger}"`,
+        `Agent config: ${path}.trigger must be "all_messages", "mention_only", or "addressed", got "${obj.trigger}"`,
       );
     }
   }

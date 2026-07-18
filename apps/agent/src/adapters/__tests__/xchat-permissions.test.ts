@@ -2,7 +2,12 @@ import { describe, expect, it } from "bun:test";
 import {
   type ConversationConfig,
   DEFAULT_CATCH_UP_INTERVAL_MS,
+  isAddressedToBot,
   isBotMention,
+  isBotNameCall,
+  isConversationContinuation,
+  isOneToOneConversation,
+  isSideTalkAboutBot,
   resolveCatchUpIntervalMs,
   resolveConversationConfig,
   resolveToolkits,
@@ -16,11 +21,11 @@ describe("shouldRespond", () => {
     expect(shouldRespond("everyone", "all_messages", "admin", false)).toBe(true);
   });
 
-  it("requires mention for mention_only trigger", () => {
+  it("requires address signal for mention_only / addressed", () => {
     expect(shouldRespond("everyone", "mention_only", "user", false)).toBe(false);
     expect(shouldRespond("everyone", "mention_only", "user", true)).toBe(true);
-    expect(shouldRespond("everyone", "mention_only", "admin", false)).toBe(false);
-    expect(shouldRespond("everyone", "mention_only", "admin", true)).toBe(true);
+    expect(shouldRespond("everyone", "addressed", "user", false)).toBe(false);
+    expect(shouldRespond("everyone", "addressed", "user", true)).toBe(true);
   });
 
   it("blocks non-admins when respondTo is admins_only", () => {
@@ -37,6 +42,105 @@ describe("shouldRespond", () => {
     expect(shouldRespond("admins_only", "mention_only", "admin", false)).toBe(false);
     expect(shouldRespond("admins_only", "mention_only", "admin", true)).toBe(true);
     expect(shouldRespond("admins_only", "mention_only", "user", true)).toBe(false);
+  });
+});
+
+describe("isAddressedToBot", () => {
+  const bot = "bot-id";
+  const handles = ["tatanbotter09"];
+
+  it("always allows 1:1", () => {
+    expect(
+      isAddressedToBot({
+        text: "random",
+        convId: "1:2",
+        myUserId: bot,
+        senderId: "1",
+        botHandles: handles,
+        isReplyToBot: false,
+        trigger: "addressed",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows @mention and name", () => {
+    expect(
+      isAddressedToBot({
+        text: "hola @tatanbotter09",
+        convId: "g1",
+        myUserId: bot,
+        senderId: "u",
+        botHandles: handles,
+        isReplyToBot: false,
+        trigger: "addressed",
+      }),
+    ).toBe(true);
+    expect(isBotNameCall("oye tatanbotter09 mira", handles)).toBe(true);
+  });
+
+  it("blocks side-talk about the bot", () => {
+    expect(isSideTalkAboutBot("JAJAJJAJA te tiene de hijo")).toBe(true);
+    expect(isSideTalkAboutBot("creo que no cachó que le hablaste a el")).toBe(true);
+    expect(
+      isAddressedToBot({
+        text: "JAJA te tiene de hijo",
+        convId: "g1",
+        myUserId: bot,
+        senderId: "christian",
+        botHandles: handles,
+        isReplyToBot: false,
+        trigger: "addressed",
+        recentChronological: [
+          { senderId: bot },
+          { senderId: "christian" },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it("allows continuation with same sender after bot", () => {
+    expect(
+      isConversationContinuation(
+        [{ senderId: "u" }, { senderId: bot }],
+        bot,
+        "u",
+      ),
+    ).toBe(true);
+    expect(
+      isAddressedToBot({
+        text: "buena gracias que opinai",
+        convId: "g1",
+        myUserId: bot,
+        senderId: "u",
+        botHandles: handles,
+        isReplyToBot: false,
+        trigger: "addressed",
+        recentChronological: [
+          { senderId: "u" },
+          { senderId: bot },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks continuation when another human spoke after bot", () => {
+    expect(
+      isConversationContinuation(
+        [{ senderId: bot }, { senderId: "seba" }],
+        bot,
+        "christian",
+      ),
+    ).toBe(false);
+  });
+
+  it("isOneToOneConversation", () => {
+    expect(isOneToOneConversation("1:2")).toBe(true);
+    expect(isOneToOneConversation("g123")).toBe(false);
+  });
+
+  it("isBotMention", () => {
+    expect(isBotMention("hi @Tatanbotter09", handles)).toBe(true);
+    expect(isBotMention("hi", handles)).toBe(false);
   });
 });
 

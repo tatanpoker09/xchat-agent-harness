@@ -226,7 +226,13 @@ const injectConversationHistory = (
 // ── Permission types ──
 
 export type RespondTo = "everyone" | "admins_only";
-export type Trigger = "all_messages" | "mention_only";
+/**
+ * - all_messages: every message (expensive; model must NO_REPLY)
+ * - mention_only: @handle or reply-to-bot only
+ * - addressed: @handle, bare name, reply-to-bot, 1:1, or continuation with the bot
+ *   (not side-talk about the bot). Prefer this — saves tokens vs all_messages.
+ */
+export type Trigger = "all_messages" | "mention_only" | "addressed";
 export type UserRole = "admin" | "user";
 
 export interface ConversationConfig {
@@ -291,7 +297,7 @@ export const resolveConversationConfig = (
     respondTo:
       runtime?.respondTo ?? static_?.respondTo ?? defaultConfig.respondTo ?? "everyone",
     trigger:
-      runtime?.trigger ?? static_?.trigger ?? defaultConfig.trigger ?? "mention_only",
+      runtime?.trigger ?? static_?.trigger ?? defaultConfig.trigger ?? "addressed",
     toolkits: runtime?.toolkits ??
       static_?.toolkits ??
       defaultConfig.toolkits ?? ["xchat"],
@@ -334,16 +340,151 @@ export const shouldRespond = (
   respondTo: RespondTo,
   trigger: Trigger,
   senderRole: UserRole,
-  isMentionOrReply: boolean,
+  isAddressed: boolean,
 ): boolean => {
   if (respondTo === "admins_only" && senderRole !== "admin") return false;
-  if (trigger === "mention_only" && !isMentionOrReply) return false;
+  if (trigger === "mention_only" && !isAddressed) return false;
+  if (trigger === "addressed" && !isAddressed) return false;
   return true;
 };
+
+/** 1:1 ids are colon-form lower:higher (never g…). */
+export const isOneToOneConversation = (convId: string): boolean =>
+  /^\d+:\d+$/.test(convId);
 
 /** Check if a message contains a bot @mention. */
 export const isBotMention = (text: string, botHandles: readonly string[]): boolean =>
   botHandles.some((handle) => text.toLowerCase().includes(`@${handle.toLowerCase()}`));
+
+/**
+ * Called by name without @ — word-boundary match on handles + display aliases
+ * (e.g. "journey bot", "tatanbotter").
+ */
+export const isBotNameCall = (
+  text: string,
+  botHandles: readonly string[],
+  extraNames: readonly string[] = ["journey bot", "journeybot", "tatanbot"],
+): boolean => {
+  const lower = text.toLowerCase();
+  const names = [
+    ...botHandles.map((h) => h.toLowerCase()),
+    ...extraNames.map((n) => n.toLowerCase()),
+  ];
+  for (const name of names) {
+    if (!name) continue;
+    // multi-word: substring with flexible spaces
+    if (name.includes(" ")) {
+      const pat = name.replace(/\s+/g, "\\s+");
+      if (new RegExp(`(?:^|[^\\w@])${pat}(?:$|[^\\w])`, "i").test(lower)) return true;
+      continue;
+    }
+    if (new RegExp(`(?:^|[^\\w@])${escapeRegExp(name)}(?:$|[^\\w])`, "i").test(lower)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Side-talk *about* the bot (or narrating it to someone else) — not addressed
+ * to the bot. Spanish/English group banter patterns.
+ */
+export const isSideTalkAboutBot = (text: string): boolean => {
+  const t = text.toLowerCase();
+  const patterns = [
+    /\bte tiene\b/, // "te tiene de hijo" → to another human
+    /\btiene de hijo\b/,
+    /\bno cach[oó]\b/,
+    /\ble hablaste\b/,
+    /\ba\s+[eé]l\b/,
+    /\bel we[oó]n\b/,
+    /\bel bot\b/,
+    /\bni se inmut/,
+    /\bte lo dije\b/,
+    /\bmir[aá]\s+lo que\b/,
+    /\bpor qu[eé] me tratas\b/, // seba to bot after roast — actually this IS to bot
+  ];
+  // "por qué me tratas" is TO the bot — don't treat as side talk
+  if (/\b(por qu[eé]|why)\s+me\s+trat/i.test(t)) return false;
+  return patterns.some((p) => p.test(t));
+};
+
+/**
+ * Continuation of a thread *with* the bot: bot spoke recently, and only the
+ * current sender has been talking since (not a multi-human side channel).
+ */
+export const isConversationContinuation = (
+  recentChronological: ReadonlyArray<{ senderId: string }>,
+  myUserId: string,
+  currentSenderId: string,
+): boolean => {
+  if (recentChronological.length === 0) return false;
+  // Find last bot message in the window (excluding the current uncommitted msg
+  // if present as last — caller should pass history *before* current).
+  let lastBot = -1;
+  for (let i = recentChronological.length - 1; i >= 0; i--) {
+    if (recentChronological[i]?.senderId === myUserId) {
+      lastBot = i;
+      break;
+    }
+  }
+  if (lastBot < 0) return false;
+  // Bot message too far back → not "ongoing"
+  if (recentChronological.length - 1 - lastBot > 4) return false;
+  const after = recentChronological.slice(lastBot + 1);
+  // Only current sender (and maybe bot, already excluded) between bot and now
+  for (const m of after) {
+    if (m.senderId !== currentSenderId && m.senderId !== myUserId) return false;
+  }
+  return true;
+};
+
+/**
+ * Whether the bot should wake for this message under trigger=addressed|mention_only.
+ * mention_only only uses @ / reply; addressed also allows name + continuation.
+ */
+export const isAddressedToBot = (options: {
+  readonly text: string;
+  readonly convId: string;
+  readonly myUserId: string;
+  readonly senderId: string;
+  readonly botHandles: readonly string[];
+  readonly isReplyToBot: boolean;
+  readonly trigger: Trigger;
+  /** Prior messages oldest→newest, not including the current message. */
+  readonly recentChronological?: ReadonlyArray<{ senderId: string }>;
+}): boolean => {
+  const {
+    text,
+    convId,
+    myUserId,
+    senderId,
+    botHandles,
+    isReplyToBot,
+    trigger,
+    recentChronological = [],
+  } = options;
+
+  // 1:1 is always "addressed"
+  if (isOneToOneConversation(convId)) return true;
+
+  if (isBotMention(text, botHandles) || isReplyToBot) return true;
+
+  if (trigger === "mention_only") return false;
+
+  // trigger === "addressed" (or all_messages callers won't use this)
+  if (isSideTalkAboutBot(text)) return false;
+  if (isBotNameCall(text, botHandles)) return true;
+  if (
+    isConversationContinuation(recentChronological, myUserId, senderId) &&
+    !isSideTalkAboutBot(text)
+  ) {
+    return true;
+  }
+  return false;
+};
 
 /** Default interval between catch-up polls (10 minutes). */
 export const DEFAULT_CATCH_UP_INTERVAL_MS = 600_000;
@@ -508,8 +649,9 @@ const watchConversation = (
             effectiveConfig.admins,
           );
 
-          // Check mention/reply for trigger filtering
-          const mentionInText = isBotMention(text, config.botHandles ?? []);
+          // Address detection — skip model when not for us (token saver).
+          const botHandles = config.botHandles ?? [];
+          const mentionInText = isBotMention(text, botHandles);
           let isReplyToBot = false;
           if (latestMsg.replyTo?.messageSequenceId) {
             const repliedMsg = yield* Chat.messages
@@ -518,11 +660,41 @@ const watchConversation = (
             isReplyToBot = repliedMsg?.sender?.id === config.myUserId;
           }
 
+          // Recent history for continuation (oldest→newest), exclude current.
+          let recentChronological: Array<{ senderId: string }> = [];
+          if (
+            effectiveConfig.trigger === "addressed" ||
+            effectiveConfig.trigger === "mention_only"
+          ) {
+            const hist = yield* Chat.messages
+              .list(conversationId, { limit: 12 })
+              .pipe(
+                Effect.catch(() =>
+                  Effect.succeed({ messages: [] as ReadonlyArray<Message> }),
+                ),
+              );
+            recentChronological = [...hist.messages]
+              .reverse()
+              .filter((m) => m.id !== latestMsg.id)
+              .map((m) => ({ senderId: m.sender?.id ?? "unknown" }));
+          }
+
+          const addressed = isAddressedToBot({
+            text,
+            convId,
+            myUserId: config.myUserId,
+            senderId,
+            botHandles,
+            isReplyToBot,
+            trigger: effectiveConfig.trigger,
+            recentChronological,
+          });
+
           const allowed = shouldRespond(
             effectiveConfig.respondTo,
             effectiveConfig.trigger,
             senderRole,
-            mentionInText || isReplyToBot,
+            addressed,
           );
 
           if (!allowed) {
@@ -538,6 +710,7 @@ const watchConversation = (
               },
               isMention: mentionInText,
               isReplyToBot,
+              addressed,
               allowed: false,
             });
             log({
@@ -562,6 +735,7 @@ const watchConversation = (
             },
             isMention: mentionInText,
             isReplyToBot,
+            addressed,
             allowed: true,
           });
 
