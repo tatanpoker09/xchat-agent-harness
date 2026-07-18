@@ -357,6 +357,59 @@ export const isBotMention = (text: string, botHandles: readonly string[]): boole
   botHandles.some((handle) => text.toLowerCase().includes(`@${handle.toLowerCase()}`));
 
 /**
+ * Cheap, no-model ambient reaction. Used even when the bot does not fully
+ * "wake" (not addressed) so group chats still feel human — laughs, fire, etc.
+ * Returns null when nothing fits (caller should not react).
+ */
+export const pickAmbientReaction = (text: string): string | null => {
+  const t = text.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+  // Explicit laugh / dead
+  if (
+    /(ja){2,}/.test(t) ||
+    /\b(jaja|jeje|jiji|jsjs|jajs|lmao|lmfao|lol+|rofl)\b/.test(t) ||
+    /[😂🤣💀]/.test(text) ||
+    /\bxd+\b/.test(t)
+  ) {
+    return "😂";
+  }
+  if (/\b(te tiene de hijo|me muero|me mori|me mate|matate|no puedo)\b/.test(t)) {
+    return "😂";
+  }
+  if (/[🔥]/.test(text) || /\b(fire|based|cracked|god tier|bueni[sc]im|impecable)\b/.test(t)) {
+    return "🔥";
+  }
+  if (/[👀]/.test(text) || /\b(ojo|interesante|wtf|what the)\b/.test(t)) {
+    return "👀";
+  }
+  if (/[❤️💜💙]/.test(text) || /\b(te amo|love you|lindo|linda)\b/.test(t)) {
+    return "❤️";
+  }
+  // Chilean banter — probabilistic so it doesn't fire every "wn"
+  if (/\b(weon|weona|wn|culiao|ctm|la wea|ql|conchetumare)\b/.test(t)) {
+    return Math.random() < 0.45 ? "😂" : null;
+  }
+  // Short pure emoji messages
+  if (/^[\p{Emoji}\s]+$/u.test(text.trim()) && text.trim().length <= 8) {
+    if (/[😢😭]/.test(text)) return "😢";
+    if (/[😍🥰]/.test(text)) return "🔥";
+  }
+  return null;
+};
+
+/** Per-conversation cooldown so ambient reacts don't spam. */
+const lastAmbientReactAt = new Map<string, number>();
+const AMBIENT_REACT_COOLDOWN_MS = 12_000;
+
+export const canAmbientReact = (convId: string, now = Date.now()): boolean => {
+  const last = lastAmbientReactAt.get(convId) ?? 0;
+  return now - last >= AMBIENT_REACT_COOLDOWN_MS;
+};
+
+export const markAmbientReact = (convId: string, now = Date.now()): void => {
+  lastAmbientReactAt.set(convId, now);
+};
+
+/**
  * Called by name without @ — word-boundary match on handles + display aliases
  * (e.g. "journey bot", "tatanbotter").
  */
@@ -713,6 +766,23 @@ const watchConversation = (
               addressed,
               allowed: false,
             });
+            // Still human: ambient react without a full model turn (token-free).
+            const ambient = pickAmbientReaction(text);
+            if (ambient && canAmbientReact(convId)) {
+              yield* Chat.messages
+                .react(conversationId, latestMsg.id, ambient)
+                .pipe(Effect.catch(() => Effect.void));
+              markAmbientReact(convId);
+              log({
+                type: "ambient_react",
+                conversationId: convId,
+                messageId: latestMsg.id,
+                emoji: ambient,
+              });
+              process.stderr.write(
+                `[xchat] ${ambient} ambient react on ${convId} (not addressed)\n`,
+              );
+            }
             log({
               type: "message_skipped",
               conversationId: convId,

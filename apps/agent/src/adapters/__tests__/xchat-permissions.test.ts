@@ -8,6 +8,7 @@ import {
   isConversationContinuation,
   isOneToOneConversation,
   isSideTalkAboutBot,
+  pickAmbientReaction,
   resolveCatchUpIntervalMs,
   resolveConversationConfig,
   resolveToolkits,
@@ -141,6 +142,22 @@ describe("isAddressedToBot", () => {
   it("isBotMention", () => {
     expect(isBotMention("hi @Tatanbotter09", handles)).toBe(true);
     expect(isBotMention("hi", handles)).toBe(false);
+  });
+});
+
+describe("pickAmbientReaction", () => {
+  it("laughs at jajaja / lmao", () => {
+    expect(pickAmbientReaction("jajajaja clásico")).toBe("😂");
+    expect(pickAmbientReaction("lmao dead")).toBe("😂");
+    expect(pickAmbientReaction("te tiene de hijo")).toBe("😂");
+  });
+
+  it("fires on fire takes", () => {
+    expect(pickAmbientReaction("that's fire based")).toBe("🔥");
+  });
+
+  it("returns null for boring text", () => {
+    expect(pickAmbientReaction("ok se ve bien el deploy")).toBe(null);
   });
 });
 
