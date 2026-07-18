@@ -40,12 +40,23 @@ if [ -f "$ROOT/.env" ]; then
 fi
 
 start_agent() {
-  local cmd="cd '$ROOT' && exec bun run apps/agent/bin/main.ts --as $HANDLE"
+  local BUN_BIN
+  BUN_BIN="$(command -v bun || true)"
+  [ -n "$BUN_BIN" ] || BUN_BIN="${HOME}/.bun/bin/bun"
+  [ -x "$BUN_BIN" ] || {
+    echo "FATAL: bun not found at $BUN_BIN"
+    return 1
+  }
+  # Absolute bun path — bare "bun" often missing in non-login tmux PATH.
+  local cmd="cd '$ROOT' && exec '$BUN_BIN' run apps/agent/bin/main.ts --as $HANDLE"
+  echo "start_cmd: $cmd"
   if command -v tmux >/dev/null 2>&1; then
     # Use a fresh session name, then rename — avoids killing ourselves mid-start.
     local tmp="xchat-agent-boot-$$"
     tmux kill-session -t "$tmp" 2>/dev/null || true
-    tmux new -d -s "$tmp" -c "$ROOT" "$cmd"
+    # Ensure child sees bun + harness bin
+    tmux new -d -s "$tmp" -c "$ROOT" \
+      "export PATH='${HOME}/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/app/bin:${PATH}'; $cmd"
     # Give bun a moment to spawn
     sleep 2
     if ! tmux has-session -t "$tmp" 2>/dev/null; then

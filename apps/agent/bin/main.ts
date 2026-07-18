@@ -135,12 +135,20 @@ let ConfigLayer: Layer.Layer<never> = Layer.empty;
 // Prefer harness .env; fall back to sibling x-chat/.env (shared XAI key).
 // Also export KEY=VALUE into process.env so bash tools (linear, gh) inherit them.
 const envCandidates = [
-  resolve(import.meta.dirname, "../../../.env"),
+  resolve(import.meta.dirname, "../../../.env"), // harness root when running apps/agent
   resolve(import.meta.dirname, "../../../../x-chat/.env"),
-];
+  // Absolute fallbacks so a wrong binary path still finds secrets
+  resolve(process.env.HOME ?? "/tmp", "Documents/Programming/xchat-agent-harness/.env"),
+  resolve(process.env.HOME ?? "/tmp", "Documents/Programming/x-chat/.env"),
+  process.env.XCHAT_HARNESS_ENV || "",
+].filter(Boolean);
+
+// Merge every readable .env (first wins for each key; process env already set wins).
+let mergedDotEnv = "";
 for (const envPath of envCandidates) {
   try {
     const contents = readFileSync(envPath, "utf-8");
+    mergedDotEnv += `\n${contents}`;
     for (const line of contents.split("\n")) {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith("#")) continue;
@@ -154,20 +162,31 @@ for (const envPath of envCandidates) {
       ) {
         value = value.slice(1, -1);
       }
-      // Don't clobber already-set secrets from the outer shell / k8s.
       if (key && process.env[key] === undefined) process.env[key] = value;
     }
-    ConfigLayer = ConfigProvider.layerAdd(ConfigProvider.fromDotEnvContents(contents));
-    break;
+    process.stderr.write(`  env: loaded ${envPath}\n`);
   } catch {
     /* try next */
   }
 }
+if (mergedDotEnv.trim()) {
+  ConfigLayer = ConfigProvider.layerAdd(ConfigProvider.fromDotEnvContents(mergedDotEnv));
+}
+process.stderr.write(
+  `  phab: ${process.env.PHABRICATOR_CONDUIT_TOKEN ? "token set" : "NO TOKEN"}\n`,
+);
 
-// Harness bin/ (linear CLI wrapper) on PATH for bash tool.
-const harnessBin = resolve(import.meta.dirname, "../../../bin");
-if (existsSync(harnessBin)) {
-  process.env.PATH = `${harnessBin}:${process.env.PATH ?? ""}`;
+// Harness bin/ (linear/sourcegraph/phab) on PATH
+const harnessBinCandidates = [
+  resolve(import.meta.dirname, "../../../bin"),
+  resolve(process.env.HOME ?? "/tmp", "Documents/Programming/xchat-agent-harness/bin"),
+];
+for (const harnessBin of harnessBinCandidates) {
+  if (existsSync(harnessBin)) {
+    process.env.PATH = `${harnessBin}:${process.env.PATH ?? ""}`;
+    process.stderr.write(`  path: prepended ${harnessBin}\n`);
+    break;
+  }
 }
 
 // ── LLM Provider ──
