@@ -976,7 +976,17 @@ export const makeWakeEyes = (config: XChatAdapterConfig) => {
   const digest = (since: Date) =>
     Effect.gen(function* () {
       const sections: string[] = [];
-      for (const convId of config.allowedConversationIds) {
+      // Never treat "*" as a conversation id. Under fanout, digest the
+      // speakUnprompted rooms (proactive blast radius) + any explicit ids.
+      const digestIds = config.allowedConversationIds.includes("*")
+        ? [
+            ...new Set([
+              ...config.allowedConversationIds.filter((id) => id !== "*"),
+              ...config.speakUnprompted,
+            ]),
+          ]
+        : [...config.allowedConversationIds];
+      for (const convId of digestIds) {
         const conversationId = ConversationId.make(convId);
         const recent = yield* Chat.messages
           .list(conversationId, { limit: DIGEST_ROOM_CAP })
@@ -1153,6 +1163,49 @@ export const makeExecuteWake = (config: XChatAdapterConfig) => (prompt: string) 
 const RECONCILE_POLL_MS = 1_000;
 
 /**
+ * Expand allowlist. `"*"` means "every conversation currently in the local
+ * inbox" — the SDK WS fanout already delivers frames for all of them into
+ * SQLite/PubSub; we just need a watcher fiber per id so the agent wakes.
+ * Explicit ids are always kept. `"*"` itself is never a watcher target.
+ */
+export const expandAllowlist = (allow: readonly string[]) =>
+  Effect.gen(function* () {
+    const explicit = allow.filter((id) => id !== "*");
+    if (!allow.includes("*")) return explicit as readonly string[];
+
+    // Page local inbox (after sync). High limit covers typical bot inboxes;
+    // fetchMore while hasMore so new groups aren't invisible forever.
+    const ids = new Set<string>(explicit);
+    let page = yield* Chat.inbox.list({ limit: 200 }).pipe(
+      Effect.catch(() =>
+        Effect.succeed({
+          conversations: [] as Array<{ id: string }>,
+          hasMore: false,
+        }),
+      ),
+    );
+    for (const c of page.conversations) ids.add(String(c.id));
+    let guard = 0;
+    while (page.hasMore && guard < 20) {
+      guard += 1;
+      const more = yield* Chat.inbox.fetchMore().pipe(
+        Effect.catch(() => Effect.succeed({ hasMore: false })),
+      );
+      page = yield* Chat.inbox.list({ limit: 200 }).pipe(
+        Effect.catch(() =>
+          Effect.succeed({
+            conversations: [] as Array<{ id: string }>,
+            hasMore: false,
+          }),
+        ),
+      );
+      for (const c of page.conversations) ids.add(String(c.id));
+      if (!more.hasMore) break;
+    }
+    return [...ids] as readonly string[];
+  });
+
+/**
  * Listen for XChat messages on all allowlisted conversations in parallel.
  * Each conversation gets its own message stream watcher.
  *
@@ -1163,11 +1216,15 @@ const RECONCILE_POLL_MS = 1_000;
  * *failure* still fails the whole adapter exactly as before — forked fibers
  * funnel failures into a Deferred the main body races — because a silently
  * dead watcher (bot looks healthy, conversation is deaf) is the worse outcome.
+ *
+ * When the allowlist contains `"*"`, desired ids are expanded from the live
+ * inbox on every reconcile tick so newly-created 1:1s/groups get a watcher
+ * without a restart (SDK fanout already ingested them).
  */
 export const listenAndRespond = (config: XChatAdapterConfig) =>
   Effect.gen(function* () {
-    // Sync inbox first
-    const syncResult = yield* Chat.inbox.sync().pipe(
+    // Sync inbox first (needed before * expansion)
+    const syncResult = yield* Chat.inbox.sync({ full: true }).pipe(
       Effect.map(() => true),
       Effect.catch(() => Effect.succeed(false)),
     );
@@ -1176,10 +1233,6 @@ export const listenAndRespond = (config: XChatAdapterConfig) =>
       success: syncResult,
       error: syncResult ? undefined : "inbox sync failed",
     });
-
-    process.stderr.write(
-      `[xchat] listening on ${config.allowedConversationIds.length} conversations\n`,
-    );
 
     // Per-conversation persistent sessions (in-memory)
     const conversationSessions = new Map<
@@ -1198,14 +1251,27 @@ export const listenAndRespond = (config: XChatAdapterConfig) =>
       );
 
     const reconcile = () =>
-      reconcileWatchers({
-        fibers: watcherFibers,
-        desired: config.allowedConversationIds,
-        fork: forkWatcher,
-        interrupt: (_convId, fiber) => Fiber.interrupt(fiber),
+      Effect.gen(function* () {
+        const desired = yield* expandAllowlist(config.allowedConversationIds);
+        return yield* reconcileWatchers({
+          fibers: watcherFibers,
+          desired,
+          fork: forkWatcher,
+          interrupt: (_convId, fiber) => Fiber.interrupt(fiber),
+        });
       });
 
-    yield* reconcile();
+    {
+      const { added } = yield* reconcile();
+      const fanout = config.allowedConversationIds.includes("*");
+      process.stderr.write(
+        `[xchat] listening on ${watcherFibers.size} conversations` +
+          `${fanout ? " (allowlist=*, inbox fanout)" : ""}\n`,
+      );
+      if (added.length > 0) {
+        process.stderr.write(`[xchat] initial watchers: ${added.length}\n`);
+      }
+    }
 
     // Run a periodic catch-up poll alongside the watchers so dropped socket
     // frames are recovered within the interval. `0` disables it.
@@ -1219,15 +1285,44 @@ export const listenAndRespond = (config: XChatAdapterConfig) =>
       yield* Effect.forkScoped(periodicCatchUp(catchUpIntervalMs));
     }
 
-    // Reconcile loop — bin/main.ts bumps `configVersion` on every config
-    // reload; allowlist add/remove then applies within RECONCILE_POLL_MS.
+    // Reconcile loop — config reloads OR inbox growth under allowlist=*
+    // (new DMs/groups) attach watchers within RECONCILE_POLL_MS.
+    const fanoutMode = () => config.allowedConversationIds.includes("*");
+    // Under *, also re-sync inbox occasionally so brand-new convs appear.
+    let ticksSinceInboxSync = 0;
+    const INBOX_RESYNC_TICKS = 30; // ~30s at 1s poll
+
     const reconcileLoop = Effect.gen(function* () {
       let lastVersion = config.configVersion;
+      let lastDesiredKey = "";
       while (true) {
         yield* Effect.sleep(`${RECONCILE_POLL_MS} millis`);
-        if (config.configVersion === lastVersion) continue;
+        const versionChanged = config.configVersion !== lastVersion;
         lastVersion = config.configVersion;
-        const { added, removed } = yield* reconcile();
+
+        if (fanoutMode()) {
+          ticksSinceInboxSync += 1;
+          if (ticksSinceInboxSync >= INBOX_RESYNC_TICKS) {
+            ticksSinceInboxSync = 0;
+            yield* Chat.inbox.sync({ full: false }).pipe(
+              Effect.catch(() => Effect.void),
+            );
+          }
+        } else if (!versionChanged) {
+          continue;
+        }
+
+        const desired = yield* expandAllowlist(config.allowedConversationIds);
+        const desiredKey = desired.slice().sort().join("\0");
+        if (!versionChanged && desiredKey === lastDesiredKey) continue;
+        lastDesiredKey = desiredKey;
+
+        const { added, removed } = yield* reconcileWatchers({
+          fibers: watcherFibers,
+          desired,
+          fork: forkWatcher,
+          interrupt: (_convId, fiber) => Fiber.interrupt(fiber),
+        });
         if (added.length > 0 || removed.length > 0) {
           log({
             type: "watcher_reconcile",

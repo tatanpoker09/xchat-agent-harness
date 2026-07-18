@@ -175,6 +175,7 @@ export const validateAgentConfig = (raw: unknown): AgentConfig => {
       throw new Error("Agent config: speakUnprompted must be an array");
     }
     const allowlist = obj.allowedConversationIds as string[];
+    const allowAll = allowlist.includes("*");
     for (const item of obj.speakUnprompted) {
       if (typeof item !== "string") {
         throw new Error("Agent config: speakUnprompted must contain only strings");
@@ -191,7 +192,9 @@ export const validateAgentConfig = (raw: unknown): AgentConfig => {
           `Agent config: speakUnprompted id "${item}" must be colon-form (<lowId>:<highId>) or group form (g<id>)`,
         );
       }
-      if (!allowlist.includes(item)) {
+      // "*" means the agent listens to the whole inbox, so any explicit
+      // speakUnprompted grant is allowed (still a tight blast-radius list).
+      if (!allowAll && !allowlist.includes(item)) {
         throw new Error(
           `Agent config: speakUnprompted id "${item}" is not in allowedConversationIds — the drone can only speak unprompted where it already listens`,
         );
