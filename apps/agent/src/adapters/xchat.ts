@@ -357,48 +357,144 @@ export const isBotMention = (text: string, botHandles: readonly string[]): boole
   botHandles.some((handle) => text.toLowerCase().includes(`@${handle.toLowerCase()}`));
 
 /**
- * Cheap, no-model ambient reaction. Used even when the bot does not fully
- * "wake" (not addressed) so group chats still feel human — laughs, fire, etc.
- * Returns null when nothing fits (caller should not react).
+ * Emoji detection must NOT use JS character classes like /[😂💀]/ — surrogate
+ * halves false-match other emoji (😔 was matching 😂). Use includes / alternation.
  */
-export const pickAmbientReaction = (text: string): string | null => {
-  const t = text.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
-  // Explicit laugh / dead
+const hasAny = (hay: string, needles: readonly string[]): boolean =>
+  needles.some((n) => hay.includes(n));
+
+/**
+ * Cheap, no-model ambient reaction. Fires even when the bot does not fully
+ * "wake" (not addressed) so group chats still feel human — laughs, fire, etc.
+ * Also used on wake turns for an instant react-before-type human beat.
+ * Returns null when nothing fits (caller should not react).
+ *
+ * @param rng injectable for tests (defaults to Math.random).
+ */
+export const pickAmbientReaction = (
+  text: string,
+  rng: () => number = Math.random,
+): string | null => {
+  const raw = text.trim();
+  if (!raw) return null;
+  // strip combining marks so "volvió" → "volvio"; keep emoji intact on `text`
+  const t = raw.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+
+  // --- Sad / soft first (before laugh nets that might overfire) ---
   if (
-    /(ja){2,}/.test(t) ||
-    /\b(jaja|jeje|jiji|jsjs|jajs|lmao|lmfao|lol+|rofl)\b/.test(t) ||
-    /[😂🤣💀]/.test(text) ||
-    /\bxd+\b/.test(t)
+    hasAny(raw, ["😢", "😭", "😔", "💔", "😞", "🥺"]) ||
+    /\b(estoy mal|me siento mal|ando triste|extrañ[oé]|extran[oe]|no volvio|se fue y no)\b/.test(
+      t,
+    )
+  ) {
+    // still laugh if the sad line is clearly a joke frame
+    if (
+      /(ja){2,}/.test(t) ||
+      /\b(jaja|jeje|lmao|lol)\b/.test(t) ||
+      hasAny(raw, ["😂", "🤣"])
+    ) {
+      return "😂";
+    }
+    return "😢";
+  }
+
+  // --- Explicit laughs / dead ---
+  // XD / xdxd / XDXDD (xd+ alone fails on "xdxdd")
+  if (/(?:^|[^a-z])(?:[xX]+[dD]+)+(?=$|[^a-z])/.test(raw)) return "😂";
+  if (
+    /(ja){2,}/.test(t) || // jajaja
+    /(ha){2,}/.test(t) || // hahaha
+    /(je){2,}/.test(t) || // jejeje
+    /(js){2,}/.test(t) || // jsjsjs
+    /k{3,}/.test(t) || // kkkk (latam)
+    /j{4,}/.test(t) || // jjjj
+    /\b(jaja|jeje|jiji|jsjs|jajs|lmao|lmfao|rofl|ahaha|ajaja)\b/.test(t) ||
+    /\blol+\b/.test(t) ||
+    hasAny(raw, ["😂", "🤣", "💀", "☠️", "😹"])
   ) {
     return "😂";
   }
-  if (/\b(te tiene de hijo|me muero|me mori|me mate|matate|no puedo)\b/.test(t)) {
+
+  // Roast / "I'm dead" energy
+  if (
+    /\b(te tiene de hijo|me muero|me mori|me mate|matate|me parti|me parti[oó]|me cague|me cago de la risa|se murio|se me murio|no puedo con|me desmayo|me doblo|me quiebro)\b/.test(
+      t,
+    )
+  ) {
     return "😂";
   }
-  if (/[🔥]/.test(text) || /\b(fire|based|cracked|god tier|bueni[sc]im|impecable)\b/.test(t)) {
+
+  // Chilean / latam banter — high hit rate so group banter feels alive
+  if (
+    /\b(weon|weona|weones|weoncito|wn|wna|culiao|culia|ctm|ql|qlo|conchetumare|la wea|q wea|que wea|la cago|cagao|cagaste|papeado|papeadisimo|papeadisima|ostia|waton|aweonao|aweonado)\b/.test(
+      t,
+    )
+  ) {
+    return rng() < 0.75 ? "😂" : null;
+  }
+  // mild Chilean filler — lower probability
+  if (/\b(sipo|yap[oa]|wena|weno|bacan|bacán|filete|la raja)\b/.test(t)) {
+    return rng() < 0.35 ? "😂" : null;
+  }
+
+  // Fire / hype
+  if (
+    hasAny(raw, ["🔥", "💯", "🚀"]) ||
+    /\b(fire|based|cracked|god tier|bueni[sc]im[oa]?s?|impecable|vamos|a full|impresionante|que nivel|q nivel)\b/.test(
+      t,
+    )
+  ) {
     return "🔥";
   }
-  if (/[👀]/.test(text) || /\b(ojo|interesante|wtf|what the)\b/.test(t)) {
+
+  // Eyes / wild
+  if (
+    hasAny(raw, ["👀", "🤨", "🧐"]) ||
+    /\b(ojo|interesante|wtf|what the|que chucha|qué chucha|de donde|de dónde|no way|en serio|enserio)\b/.test(
+      t,
+    )
+  ) {
     return "👀";
   }
-  if (/[❤️💜💙]/.test(text) || /\b(te amo|love you|lindo|linda)\b/.test(t)) {
+
+  // Hearts / soft praise
+  if (
+    hasAny(raw, ["❤️", "❤", "💜", "💙", "💕", "😍", "🥰"]) ||
+    /\b(te amo|love you|te quiero|lindo|linda|hermoso|hermosa|my goat|el goat)\b/.test(t)
+  ) {
     return "❤️";
   }
-  // Chilean banter — probabilistic so it doesn't fire every "wn"
-  if (/\b(weon|weona|wn|culiao|ctm|la wea|ql|conchetumare)\b/.test(t)) {
-    return Math.random() < 0.45 ? "😂" : null;
+
+  // Classic "f" / respect
+  if (/^f+$/i.test(raw) || /\bpress f\b/i.test(t)) return "🫡";
+
+  // Short pure-emoji pings (only whole-message emoji)
+  const emojiOnly = raw.replace(/[\s\uFE0F]/g, "");
+  if (
+    emojiOnly.length > 0 &&
+    emojiOnly.length <= 8 &&
+    /^[\p{Extended_Pictographic}\u200d]+$/u.test(emojiOnly)
+  ) {
+    if (hasAny(raw, ["😢", "😭", "😔"])) return "😢";
+    if (hasAny(raw, ["😍", "🥰", "🔥", "💯"])) return "🔥";
+    if (hasAny(raw, ["😂", "🤣", "💀"])) return "😂";
+    if (hasAny(raw, ["👀"])) return "👀";
+    // mirror a single strong emoji as 😂 if it's jokey noise
+    if (rng() < 0.4) return "😂";
   }
-  // Short pure emoji messages
-  if (/^[\p{Emoji}\s]+$/u.test(text.trim()) && text.trim().length <= 8) {
-    if (/[😢😭]/.test(text)) return "😢";
-    if (/[😍🥰]/.test(text)) return "🔥";
+
+  // Very short hype bursts ("NOOO", "JAJA", "BROOO")
+  if (/^(no){2,}o*$/i.test(raw) || /^(bro){1,}o+$/i.test(raw)) {
+    return rng() < 0.5 ? "😂" : "👀";
   }
+
   return null;
 };
 
 /** Per-conversation cooldown so ambient reacts don't spam. */
 const lastAmbientReactAt = new Map<string, number>();
-const AMBIENT_REACT_COOLDOWN_MS = 12_000;
+/** ~1 laugh every few messages in a hot banter thread feels human. */
+const AMBIENT_REACT_COOLDOWN_MS = 5_000;
 
 export const canAmbientReact = (convId: string, now = Date.now()): boolean => {
   const last = lastAmbientReactAt.get(convId) ?? 0;
@@ -750,6 +846,27 @@ const watchConversation = (
             addressed,
           );
 
+          // Reactions are independent of the address gate — anytime, cheap,
+          // no model. Instant 😂 while (if allowed) the model is still thinking.
+          const ambient = pickAmbientReaction(text);
+          if (ambient && canAmbientReact(convId)) {
+            yield* Chat.messages
+              .react(conversationId, latestMsg.id, ambient)
+              .pipe(Effect.catch(() => Effect.void));
+            markAmbientReact(convId);
+            log({
+              type: "ambient_react",
+              conversationId: convId,
+              messageId: latestMsg.id,
+              emoji: ambient,
+              addressed,
+              allowed,
+            });
+            process.stderr.write(
+              `[xchat] ${ambient} ambient react on ${convId}${allowed ? " (wake)" : " (not addressed)"}\n`,
+            );
+          }
+
           if (!allowed) {
             log({
               type: "permission_check",
@@ -766,23 +883,6 @@ const watchConversation = (
               addressed,
               allowed: false,
             });
-            // Still human: ambient react without a full model turn (token-free).
-            const ambient = pickAmbientReaction(text);
-            if (ambient && canAmbientReact(convId)) {
-              yield* Chat.messages
-                .react(conversationId, latestMsg.id, ambient)
-                .pipe(Effect.catch(() => Effect.void));
-              markAmbientReact(convId);
-              log({
-                type: "ambient_react",
-                conversationId: convId,
-                messageId: latestMsg.id,
-                emoji: ambient,
-              });
-              process.stderr.write(
-                `[xchat] ${ambient} ambient react on ${convId} (not addressed)\n`,
-              );
-            }
             log({
               type: "message_skipped",
               conversationId: convId,

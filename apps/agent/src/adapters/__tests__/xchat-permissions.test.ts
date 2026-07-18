@@ -146,18 +146,40 @@ describe("isAddressedToBot", () => {
 });
 
 describe("pickAmbientReaction", () => {
-  it("laughs at jajaja / lmao", () => {
+  const always = () => 0; // force probabilistic branches to fire
+  const never = () => 0.99;
+
+  it("laughs at jajaja / lmao / XDXD", () => {
     expect(pickAmbientReaction("jajajaja clásico")).toBe("😂");
     expect(pickAmbientReaction("lmao dead")).toBe("😂");
     expect(pickAmbientReaction("te tiene de hijo")).toBe("😂");
+    expect(pickAmbientReaction("XDXDD")).toBe("😂");
+    expect(pickAmbientReaction("ni pescaste pero XD")).toBe("😂");
+    expect(pickAmbientReaction("ahahaha")).toBe("😂");
+  });
+
+  it("does not false-laugh at sad emoji (surrogate-class bug)", () => {
+    expect(pickAmbientReaction("Ella no volvió 😔")).toBe("😢");
+    expect(pickAmbientReaction("estoy mal hoy")).toBe("😢");
+  });
+
+  it("laughs at Chilean banter when rng hits", () => {
+    expect(pickAmbientReaction("Es medio weoncito", always)).toBe("😂");
+    expect(pickAmbientReaction("si es weon", always)).toBe("😂");
+    expect(pickAmbientReaction("papeadisimo cba", always)).toBe("😂");
+    expect(pickAmbientReaction("la cago wn", always)).toBe("😂");
+    // rng miss → null
+    expect(pickAmbientReaction("si es weon", never)).toBe(null);
   });
 
   it("fires on fire takes", () => {
     expect(pickAmbientReaction("that's fire based")).toBe("🔥");
+    expect(pickAmbientReaction("VAMOS OSTIA", always)).toBe("😂"); // ostia = banter first
   });
 
   it("returns null for boring text", () => {
     expect(pickAmbientReaction("ok se ve bien el deploy")).toBe(null);
+    expect(pickAmbientReaction("ahora si lo cambie")).toBe(null);
   });
 });
 
