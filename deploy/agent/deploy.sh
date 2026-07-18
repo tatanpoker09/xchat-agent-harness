@@ -163,7 +163,7 @@ trap 'rm -f "$TSS_ENV_FILE"' EXIT
   printf 'XCHAT_AGENT_CONFIG_B64=%s\n' \
     "$(base64 < "$ACCOUNT_DIR/agent-config.json" | tr -d '\n')"
   # Optional extras from harness .env
-  for k in LINEAR_API_KEY SOURCEGRAPH_TOKEN SOURCEGRAPH_URL BRAIN_GIT_TOKEN GH_TOKEN; do
+  for k in LINEAR_API_KEY SOURCEGRAPH_TOKEN SOURCEGRAPH_URL BRAIN_GIT_TOKEN GH_TOKEN PHABRICATOR_CONDUIT_TOKEN PHABRICATOR_URL; do
     eval "val=\${$k:-}"
     [ -n "$val" ] && printf '%s=%s\n' "$k" "$val"
   done
